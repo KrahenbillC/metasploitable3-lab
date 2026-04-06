@@ -1,0 +1,20 @@
+Install Required Tools
+
+Install these BEFORE running the lab:
+
+1. VirtualBox
+2. Vagrant
+3. Packer
+
+After installing:
+
+1. Go to:
+   C:\Metasploitable3-Lab
+
+2. Double-click:
+   Launch-BuildKit.bat
+
+3. Select:
+   1 → Check environment
+
+If all tools show [OK], continue with the build.

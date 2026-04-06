@@ -1,0 +1,34 @@
+Quick Start
+
+Location:
+C:\Metasploitable3-Lab
+
+Steps:
+
+1. Double-click:
+   Launch-BuildKit.bat
+
+2. Choose:
+   1 → Check environment
+   2 → Build Windows 2008
+
+3. Wait for build (30–60 minutes)
+
+4. After build:
+
+   * Start VM from menu
+   * Export to OVA if needed
+
+Login:
+Username: vagrant
+Password: vagrant
+
+If something fails:
+
+* Run option 9 (cleanup)
+* Then try again
+
+If still broken:
+
+* Run option 10 (full reset)
+* Then rebuild

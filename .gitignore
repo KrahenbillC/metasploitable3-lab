@@ -1,0 +1,7 @@
+output-virtualbox-iso/
+.vagrant/
+exports/
+*.ova
+*.box
+*.log
+*.iso

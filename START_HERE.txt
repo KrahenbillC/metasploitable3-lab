@@ -1,0 +1,25 @@
+START HERE
+
+1. Extract this zip file to:
+   C:\Metasploitable3-Lab
+
+2. Open the folder:
+   Metasploitable3-Lab
+
+3. Double-click:
+   Launch-BuildKit.bat
+
+4. In the menu:
+
+   * Press 1 (Check environment)
+   * Press 2 (Build Windows 2008 lab)
+
+Wait 30–60 minutes for the build to complete.
+
+Login after build:
+Username: vagrant
+Password: vagrant
+
+IMPORTANT:
+This system is intentionally vulnerable.
+Do NOT connect it to the public internet.

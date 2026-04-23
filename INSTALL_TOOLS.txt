@@ -1,0 +1,11 @@
+INSTALL THESE BEFORE RUNNING THE LAB
+
+Required:
+- VirtualBox
+- Vagrant
+- Git
+- PowerShell (included with Windows)
+
+After installing, restart your computer.
+
+Then return and run RUN-LAB.bat

@@ -1,0 +1,18 @@
+METASPLOITABLE3 LAB - START HERE
+
+STEP 1: Extract this folder to your Desktop
+
+STEP 2: Open the folder
+
+STEP 3: Double-click RUN-LAB.bat
+
+STEP 4: Wait (this build can take a long time)
+
+STEP 5: Open VirtualBox
+
+STEP 6: Start the Metasploitable3 virtual machines
+
+IMPORTANT:
+- Run on Windows
+- Do not move files out of this folder
+- First build may take 30–90 minutes

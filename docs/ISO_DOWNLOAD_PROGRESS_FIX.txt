@@ -1,0 +1,8 @@
+Metasploitable3 Windows Server 2008 R2 Student Builder - ISO Download UX Fix
+
+Changes in this build:
+- Added a clear Windows Server 2008 R2 ISO download patience banner before Packer starts.
+- Added periodic "Still working" reminders every 30 seconds while Packer is running.
+- Clarified that pauses at "Retrieving ISO" or Microsoft download URLs are normal.
+- Reminded students that pressing ENTER is only for the manual release step after the VM is visibly complete or Packer is stuck waiting on SSH/WinRM.
+- Preserved the existing five-stage workflow and VM preservation behavior.

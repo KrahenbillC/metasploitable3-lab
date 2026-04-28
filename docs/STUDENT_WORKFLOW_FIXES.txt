@@ -1,0 +1,22 @@
+Metasploitable3 Windows 2008 Student Builder Fixes
+
+Applied fixes:
+1. Added student-ready menu with 0 as the exit option.
+2. Added five-stage build flow:
+   - Stage 1: environment and build file checks
+   - Stage 2: VM preparation
+   - Stage 3: Windows Server 2008 R2 VM creation
+   - Stage 4: student manual finalization
+   - Stage 5: build summary
+3. Preserves the completed VirtualBox VM instead of deleting it after late Packer communicator issues.
+4. Allows the student/instructor to press ENTER when the VM is complete and Packer is stuck waiting.
+5. Adds final instructions for Guest Additions, UAC, Host-Only networking, reboot, menu return, and exit.
+
+Recommended instructor workflow:
+- Start option 2.
+- Observe the VM creation in VirtualBox.
+- Once Windows setup is complete, manually install Guest Additions if needed.
+- Disable UAC if needed.
+- Set the network adapter to Host-Only Adapter.
+- Reboot the VM.
+- Return to PowerShell, press ENTER, return to the menu, and type 0 to exit.

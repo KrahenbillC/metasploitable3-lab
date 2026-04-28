@@ -189,6 +189,152 @@ function Full-Reset {
     Write-Host "[OK] Full reset complete." -ForegroundColor Green
 }
 
+
+function Test-VBoxVMExists($vmName) {
+    if (-not $virtualBox) { return $false }
+    try {
+        $vms = & $virtualBox list vms 2>$null | Out-String
+        return ($vms -match [regex]::Escape($vmName))
+    }
+    catch {
+        return $false
+    }
+}
+
+function Show-BuildStage {
+    param(
+        [Parameter(Mandatory=$true)][string]$Stage,
+        [Parameter(Mandatory=$true)][string]$Message
+    )
+
+    Write-Host ""
+    Write-Host "--------------------------------------------------------" -ForegroundColor DarkCyan
+    Write-Host "[$Stage] $Message" -ForegroundColor Cyan
+    Write-Host "--------------------------------------------------------" -ForegroundColor DarkCyan
+}
+
+
+function Show-ISODownloadPatienceBanner {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Yellow
+    Write-Host "              WINDOWS SERVER 2008 R2 ISO DOWNLOAD" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Packer may download the Windows Server 2008 R2 ISO from Microsoft." -ForegroundColor Yellow
+    Write-Host "This can take 5-20+ minutes depending on internet speed." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "During the download, Packer may appear paused at lines like:" -ForegroundColor Yellow
+    Write-Host "  virtualbox-iso: Retrieving ISO" -ForegroundColor Gray
+    Write-Host "  virtualbox-iso: Trying https://download.microsoft.com/..." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "This is normal. Do not close this PowerShell window." -ForegroundColor Yellow
+    Write-Host "A status reminder will appear periodically while Packer is still running." -ForegroundColor Yellow
+    Write-Host ""
+}
+
+function Show-StudentFinalizationBanner($vmName) {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Green
+    Write-Host "              STUDENT MANUAL FINALIZATION" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "The VM has been created/preserved in VirtualBox." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "VM name:" -ForegroundColor Cyan
+    Write-Host "  $vmName" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Complete these steps in VirtualBox:"
+    Write-Host "  1. Observe that Windows Server 2008 R2 has completed setup"
+    Write-Host "  2. Install VirtualBox Guest Additions manually if needed"
+    Write-Host "  3. Disable UAC manually if needed"
+    Write-Host "  4. Set the VM network adapter to Host-Only Adapter"
+    Write-Host "  5. Reboot the VM after those changes"
+    Write-Host ""
+    Write-Host "When the VM is ready:"
+    Write-Host "  - Return to this PowerShell window"
+    Write-Host "  - Press ENTER to return to the main menu"
+    Write-Host "  - Type 0 at the main menu to exit"
+    Write-Host ""
+}
+
+function Invoke-PackerWithStudentRelease {
+    param(
+        [Parameter(Mandatory=$true)][string]$TemplatePath,
+        [Parameter(Mandatory=$true)][string]$VmName
+    )
+
+    $arguments = @(
+        "build",
+        "-force",
+        "-on-error=abort",
+        "--only=virtualbox-iso",
+        $TemplatePath
+    )
+
+    Show-ISODownloadPatienceBanner
+
+    Write-Host "[*] Starting Packer build..." -ForegroundColor Yellow
+    Write-Host "[*] Packer output will appear below." -ForegroundColor Yellow
+    Write-Host "[*] If the screen pauses while the ISO downloads, keep waiting. This is normal." -ForegroundColor Yellow
+    Write-Host "[*] If Packer waits on SSH/WinRM after the VM is visibly complete, finish the VM manually." -ForegroundColor Yellow
+    Write-Host "[*] Then press ENTER in this window to release the menu without deleting the VM." -ForegroundColor Yellow
+    Write-Host ""
+
+    $proc = Start-Process -FilePath $packer -ArgumentList $arguments -NoNewWindow -PassThru
+    $studentReleased = $false
+    $exitCode = 999
+    $buildStart = Get-Date
+    $lastReminder = Get-Date
+
+    while (-not $proc.HasExited) {
+        Start-Sleep -Seconds 2
+
+        $now = Get-Date
+        if (($now - $lastReminder).TotalSeconds -ge 30) {
+            $elapsed = New-TimeSpan -Start $buildStart -End $now
+            Write-Host ""
+            Write-Host ("[Still working] Packer is downloading/building. Elapsed: {0}h {1}m {2}s. Please wait." -f $elapsed.Hours, $elapsed.Minutes, $elapsed.Seconds) -ForegroundColor DarkYellow
+            Write-Host "[Tip] If the VM is visibly complete but Packer is stuck waiting on SSH/WinRM, press ENTER here to preserve the VM and return to the menu." -ForegroundColor DarkYellow
+            Write-Host ""
+            $lastReminder = $now
+        }
+
+        try {
+            if ([Console]::KeyAvailable) {
+                $key = [Console]::ReadKey($true)
+                if ($key.Key -eq "Enter") {
+                    $studentReleased = $true
+                    Write-Host ""
+                    Write-Host "[INFO] Student manual release requested. Preserving VM and stopping Packer wait..." -ForegroundColor Yellow
+
+                    try {
+                        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                    }
+                    catch {}
+
+                    Start-Sleep -Seconds 2
+                    break
+                }
+            }
+        }
+        catch {
+            # Some hosts do not expose KeyAvailable. Continue waiting for Packer.
+        }
+    }
+
+    if ($proc.HasExited) {
+        $exitCode = $proc.ExitCode
+    }
+    elseif ($studentReleased) {
+        $exitCode = 130
+    }
+
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        StudentReleased = $studentReleased
+    }
+}
+
 function Install-Box($osFull, $osShort) {
     $templatePath = ".\packer\templates\$osFull.json"
     if (-not (Test-Path $templatePath)) {
@@ -200,40 +346,95 @@ function Install-Box($osFull, $osShort) {
     $vmName = Get-VMName $osShort
 
     Show-Header "Building $vmName"
-    Write-Host "Template: $templatePath"
-    Write-Host "Expected box file: $boxPath"
-    Write-Host ""
 
-    if (Test-Path $boxPath) {
-        Write-Host "[OK] Existing box found. Skipping Packer build." -ForegroundColor Green
-    } else {
-        Cleanup-BuildArtifacts
-        Remove-VirtualBoxVM $vmName
-        foreach ($path in (Get-VMFolderCandidates $vmName)) {
-            Remove-PathIfExists $path
+    if ($osShort -ne "win2k8") {
+        Write-Host "[INFO] Non-Windows-2008 builds use the original Vagrant box workflow." -ForegroundColor Yellow
+        Write-Host "Template: $templatePath"
+        Write-Host "Expected box file: $boxPath"
+        Write-Host ""
+
+        if (Test-Path $boxPath) {
+            Write-Host "[OK] Existing box found. Skipping Packer build." -ForegroundColor Green
+        } else {
+            Cleanup-BuildArtifacts
+            Remove-VirtualBoxVM $vmName
+            foreach ($path in (Get-VMFolderCandidates $vmName)) {
+                Remove-PathIfExists $path
+            }
+
+            Write-Host "[INFO] Starting Packer build..." -ForegroundColor Yellow
+            & $packer build -force --only=virtualbox-iso $templatePath
+            if ($LASTEXITCODE -ne 0) {
+                throw "Error building the Vagrant box using Packer."
+            }
+            Write-Host "[OK] Box successfully built by Packer." -ForegroundColor Green
         }
 
-        Write-Host "[INFO] Starting Packer build..." -ForegroundColor Yellow
-        & $packer build -force --only=virtualbox-iso $templatePath
-        if ($LASTEXITCODE -ne 0) {
-            throw "Error building the Vagrant box using Packer."
-        }
-        Write-Host "[OK] Box successfully built by Packer." -ForegroundColor Green
+        return
     }
 
+    Show-BuildStage -Stage "Stage 1 of 5" -Message "Checking build files and environment"
+    Require-Tool $virtualBox "VirtualBox"
+    Require-Tool $packer "Packer"
+    Write-Host "Template: $templatePath"
+    Write-Host "VM Name : $vmName"
     Write-Host ""
-    Write-Host "[INFO] Checking whether Vagrant box is already added..." -ForegroundColor Yellow
-    $boxList = & $vagrant box list | Out-String
 
-    if ($boxList -match [regex]::Escape("rapid7/metasploitable3-$osShort")) {
-        Write-Host "[OK] rapid7/metasploitable3-$osShort already exists in Vagrant." -ForegroundColor Green
-    } else {
-        Write-Host "[INFO] Adding box to Vagrant..." -ForegroundColor Yellow
-        & $vagrant box add $boxPath --name "rapid7/metasploitable3-$osShort"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Error adding metasploitable3-$osShort box to Vagrant."
+    Show-BuildStage -Stage "Stage 2 of 5" -Message "Preparing the VirtualBox build VM"
+    Write-Host "This option preserves completed VMs and avoids deleting usable student builds." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "If an older VM with the same name exists, remove it only when you intentionally want a fresh rebuild." -ForegroundColor Yellow
+    $existing = Test-VBoxVMExists $vmName
+    if ($existing) {
+        Write-Host "[INFO] Existing VM detected: $vmName" -ForegroundColor Yellow
+        $rebuild = Read-Host "Type REBUILD to delete it and start fresh, or press ENTER to keep it"
+        if ($rebuild -eq "REBUILD") {
+            Remove-VirtualBoxVM $vmName
+            foreach ($path in (Get-VMFolderCandidates $vmName)) {
+                Remove-PathIfExists $path
+            }
+        } else {
+            Write-Host "[OK] Existing VM preserved. Skipping destructive cleanup." -ForegroundColor Green
+            Show-StudentFinalizationBanner $vmName
+            Read-Host "Press ENTER to return to the main menu" | Out-Null
+            return
         }
-        Write-Host "[OK] rapid7/metasploitable3-$osShort box successfully added." -ForegroundColor Green
+    } else {
+        Cleanup-BuildArtifacts
+    }
+
+    Show-BuildStage -Stage "Stage 3 of 5" -Message "Installing Windows Server 2008 R2 and creating the VM"
+    Write-Host "The VM will appear in VirtualBox during this stage." -ForegroundColor Yellow
+    Write-Host "Do not close VirtualBox while the build is running." -ForegroundColor Yellow
+    Write-Host ""
+
+    $buildStart = Get-Date
+    $result = Invoke-PackerWithStudentRelease -TemplatePath $templatePath -VmName $vmName
+    $elapsed = New-TimeSpan -Start $buildStart -End (Get-Date)
+
+    Show-BuildStage -Stage "Stage 4 of 5" -Message "Student manual completion"
+    $vmDetected = Test-VBoxVMExists $vmName
+
+    if ($vmDetected) {
+        Show-StudentFinalizationBanner $vmName
+        Read-Host "Press ENTER to return to the main menu" | Out-Null
+    } else {
+        Write-Host "[WARNING] The VM was not detected by name in VirtualBox." -ForegroundColor Yellow
+        Write-Host "Check VirtualBox manually before attempting a rebuild." -ForegroundColor Yellow
+        Read-Host "Press ENTER to return to the main menu" | Out-Null
+    }
+
+    Show-BuildStage -Stage "Stage 5 of 5" -Message "Build summary"
+    Write-Host "Elapsed time: $($elapsed.Hours)h $($elapsed.Minutes)m $($elapsed.Seconds)s"
+    Write-Host "Packer exit code: $($result.ExitCode)"
+    Write-Host "Student manual release: $($result.StudentReleased)"
+    Write-Host ""
+
+    if ($vmDetected) {
+        Write-Host "[SUCCESS] VM created/preserved in VirtualBox: $vmName" -ForegroundColor Green
+        Write-Host "[INFO] No automatic delete/reset was performed." -ForegroundColor Cyan
+    } else {
+        Write-Host "[WARNING] Build finished, but the VM was not confirmed." -ForegroundColor Yellow
     }
 }
 
@@ -304,30 +505,38 @@ function Show-EnvironmentInfo {
 }
 
 function Show-Menu {
-    Show-Header "Metasploitable3 Interactive Builder"
-    Write-Host "1. Check environment"
-    Write-Host "2. Build Windows 2008 box"
-    Write-Host "3. Build Ubuntu 1404 box"
-    Write-Host "4. Build both boxes"
-    Write-Host "5. Start win2k8 VM"
-    Write-Host "6. Start ub1404 VM"
-    Write-Host "7. Export win2k8 to OVA"
-    Write-Host "8. Export ub1404 to OVA"
-    Write-Host "9. Cleanup build artifacts"
-    Write-Host "10. Full reset"
-    Write-Host "11. Exit"
+    Clear-Host
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host " Metasploitable3 Windows 2008 Student Builder" -ForegroundColor Cyan
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host " Build the VM, complete final steps in VirtualBox,"
+    Write-Host " then return here and type 0 to exit."
+    Write-Host ""
+    Write-Host "[1] Check environment"
+    Write-Host "[2] Build Windows 2008 VM"
+    Write-Host "[3] Build Ubuntu 1404 box"
+    Write-Host "[4] Build both"
+    Write-Host "[5] Start win2k8 VM"
+    Write-Host "[6] Start ub1404 VM"
+    Write-Host "[7] Export win2k8 to OVA"
+    Write-Host "[8] Export ub1404 to OVA"
+    Write-Host "[9] Cleanup build artifacts only"
+    Write-Host "[10] Full reset / delete VMs"
+    Write-Host "[0] Exit"
     Write-Host ""
 }
 
 function Run-Interactive {
+    $exitRequested = $false
+
     do {
         try {
             Show-Menu
-            $choice = Read-Host "Choose an option"
+            $choice = (Read-Host "Select an option").Trim()
 
             switch ($choice) {
                 "1"  { Show-EnvironmentInfo; Pause-Step }
-                "2"  { Show-EnvironmentInfo; Install-Box -osFull "windows_2008_r2" -osShort "win2k8"; Pause-Step }
+                "2"  { Show-EnvironmentInfo; Install-Box -osFull "windows_2008_r2" -osShort "win2k8" }
                 "3"  { Show-EnvironmentInfo; Install-Box -osFull "ubuntu_1404" -osShort "ub1404"; Pause-Step }
                 "4"  { Show-EnvironmentInfo; Install-Box -osFull "windows_2008_r2" -osShort "win2k8"; Install-Box -osFull "ubuntu_1404" -osShort "ub1404"; Pause-Step }
                 "5"  { Start-VM "win2k8"; Pause-Step }
@@ -336,8 +545,15 @@ function Run-Interactive {
                 "8"  { Export-OVA "ub1404"; Pause-Step }
                 "9"  { Cleanup-BuildArtifacts; Pause-Step }
                 "10" { Full-Reset; Pause-Step }
-                "11" { Write-Host "Exiting." }
-                default { Write-Host "Invalid selection." -ForegroundColor Red; Pause-Step }
+                "0"  {
+                    $exitRequested = $true
+                    Write-Host ""
+                    Write-Host "Exiting Metasploitable3 Student Builder." -ForegroundColor Cyan
+                }
+                default {
+                    Write-Host "[ERROR] Invalid selection." -ForegroundColor Red
+                    Pause-Step
+                }
             }
         }
         catch {
@@ -346,7 +562,7 @@ function Run-Interactive {
             Pause-Step
         }
     }
-    while ($choice -ne "11")
+    while (-not $exitRequested)
 }
 
 if ($args.Length -gt 0) {

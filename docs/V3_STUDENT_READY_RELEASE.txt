@@ -1,0 +1,21 @@
+Metasploitable3 Windows Server 2008 R2 Student Builder - Student Ready Release
+
+This release keeps the guided five-stage build workflow and preserves the VM when Packer reaches the usual SSH/WinRM wait state.
+
+Expected student workflow:
+1. Start the build from the menu.
+2. Wait while the Microsoft Windows Server 2008 R2 ISO downloads.
+3. Let Packer create and boot the VirtualBox VM.
+4. When the VM is visibly complete but Packer is waiting on SSH/WinRM, press ENTER in PowerShell.
+5. Complete the final steps in VirtualBox:
+   - Confirm Windows Server 2008 R2 setup is complete
+   - Install VirtualBox Guest Additions if needed
+   - Disable UAC if needed
+   - Set the network adapter to Host-Only Adapter
+   - Reboot the VM
+6. Return to PowerShell, press ENTER to return to the main menu, then type 0 to exit.
+
+Important:
+- The script is designed to preserve the VM instead of deleting it after communicator issues.
+- Packer SSH/WinRM wait messages are expected during this workflow.
+- Do not close VirtualBox while the build is running.

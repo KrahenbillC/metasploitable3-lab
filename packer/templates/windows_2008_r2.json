@@ -121,8 +121,17 @@
           "{{.Name}}",
           "--cpus",
           "2"
+        ],
+        [
+          "modifyvm",
+          "{{.Name}}",
+          "--nic1",
+          "nat"
         ]
-      ]
+      ],
+      "keep_registered": true,
+      "skip_export": true,
+      "guest_additions_mode": "disable"
     },
     {
       "type": "qemu",
@@ -177,14 +186,23 @@
   ],
   "provisioners": [
     {
-        "type": "shell-local",
-        "only_on": ["linux", "darwin"],
-        "inline": ["cd {{user `resources_dir`}} && {{user `resources_dir`}}/download-windows-files.sh"]
+      "type": "shell-local",
+      "only_on": [
+        "linux",
+        "darwin"
+      ],
+      "inline": [
+        "cd {{user `resources_dir`}} && {{user `resources_dir`}}/download-windows-files.sh"
+      ]
     },
     {
-        "type": "shell-local",
-        "only_on": ["windows"],
-        "inline": ["cd {{user `resources_dir`}} && powershell {{user `resources_dir`}}/download-windows-files.ps1"]
+      "type": "shell-local",
+      "only_on": [
+        "windows"
+      ],
+      "inline": [
+        "cd {{user `resources_dir`}} && powershell {{user `resources_dir`}}/download-windows-files.ps1"
+      ]
     },
     {
       "type": "file",
@@ -355,14 +373,7 @@
       "destination": "C:/startup/setup_linux_share.bat"
     }
   ],
-  "post-processors": [
-    {
-      "type": "vagrant",
-      "keep_input_artifact": false,
-      "output": "{{template_dir}}/../builds/windows_2008_r2_{{.Provider}}_{{user `box_version`}}.box",
-      "vagrantfile_template": "{{template_dir}}/vagrantfile-windows_2008_r2.template"
-    }
-  ],
+  "post-processors": [],
   "variables": {
     "iso_url": "https://download.microsoft.com/download/4/1/D/41DEA7E0-B30D-4012-A1E3-F24DC03BA1BB/7601.17514.101119-1850_x64fre_server_eval_en-us-GRMSXEVAL_EN_DVD.iso",
     "iso_checksum": "4263be2cf3c59177c45085c0a7bc6ca5",

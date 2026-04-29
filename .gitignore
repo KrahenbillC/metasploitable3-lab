@@ -3,10 +3,8 @@ packer_cache/
 packer/builds/
 resources/drivers/
 resources/windows_pre_downloads/
-*.vfd
-*.exe
-*.msi
-*.msu
-*.DS_Store
+*.log
 *.box
-*.iso
+*.ova
+output-*
+iso/
